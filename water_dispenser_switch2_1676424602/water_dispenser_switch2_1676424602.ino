@@ -1,0 +1,158 @@
+#include <Keypad.h>
+#include <LiquidCrystal_I2C.h> 
+const int ROW_NUM = 4; //four rows
+const int COLUMN_NUM = 4; //four columns
+const int trigger = 2;
+float time=0,distance=10;
+const int echo = 12;
+char keys[ROW_NUM][COLUMN_NUM] = {
+{'1','2','3', 'A'},
+{'4','5','6', 'B'},
+{'7','8','9', 'C'},
+{'*','0','#', 'D'}
+};
+LiquidCrystal_I2C lcd(0x27, 20, 4); // ligne 8 
+byte pin_rows[ROW_NUM] = {11, 10, 9, 8}; //connect to the row pinouts of the keypad
+byte pin_column[COLUMN_NUM] = {7, 6, 5, 4}; //connect to the column pinouts of the keypad
+Keypad keypad = Keypad( makeKeymap(keys), pin_rows, pin_column, ROW_NUM, COLUMN_NUM );
+
+int sensorInterrupt = 0;  // interrupt 0
+int sensorPin       = 2; //Digital Pin 2
+int solenoidValve = 3; // Digital pin 5
+unsigned int SetPoint = 400; //400 milileter
+String code="";
+/*The hall-effect flow sensor outputs pulses per second per litre/minute of flow.*/
+float calibrationFactor = 90; //You can change according to your datasheet
+
+volatile byte pulseCount =0;  
+
+float flowRate = 0.0;
+unsigned int flowMilliLitres =0;
+unsigned long totalMilliLitres = 0;
+double volume=0.0;
+double delayTime = 0;
+unsigned long oldTime ;
+const int relais_moteur = 3; // the relay is connected to pin 3 of the Adruino board
+
+void setup()
+
+{ totalMilliLitres = 0;
+  pinMode(relais_moteur, OUTPUT);
+  lcd.begin(); // display initialization
+  lcd.clear();
+  lcd.backlight(); // activate the backlight
+  lcd.setCursor(0, 0); // stand in the front line
+  lcd.print("Enter Amount:");
+pinMode(trigger,OUTPUT);
+pinMode(echo,INPUT);
+// Initialize a serial connection for reporting values to the host
+  Serial.begin(9600);
+  pinMode(solenoidValve , OUTPUT);
+  digitalWrite(solenoidValve, HIGH);
+  pinMode(sensorPin, INPUT);
+  digitalWrite(sensorPin, HIGH);
+  /*The Hall-effect sensor is connected to pin 2 which uses interrupt 0. Configured to trigger on a FALLING state change (transition from HIGH
+  (state to LOW state)*/
+  // attachInterrupt(sensorInterrupt, pulseCounter, FALLING); //you can use Rising or Falling
+}
+
+void loop()
+{
+        // start:
+  //          lcd.clear();
+  // lcd.backlight(); // activate the backlight
+  // lcd.setCursor(0, 0); // stand in the front line
+  // lcd.print("Enter Amount:");
+   
+
+
+  char key = keypad.getKey(); 
+    //lcd.clear();
+
+  if(key) // A key on the keyboard is pressed
+    { 
+  code+=key;
+  lcd.setCursor(0, 1); // stand on the second line
+  lcd.print(code);  // show volume value
+  delay(100);
+    }
+
+    if (key=='*') { // if you press the 'D' key
+  
+     if(code.toInt()<=1500){
+        volume=code.toInt();
+        delayTime = (10000 * (volume/230));
+     
+     }
+     else{
+        lcd.clear();
+        lcd.backlight(); 
+        lcd.setCursor(0, 0); 
+        lcd.print("Enter Amount:");  
+     }
+    code="";
+    }
+     if(key =='D'){
+        lcd.clear();
+        lcd.backlight(); 
+        lcd.setCursor(0, 0); 
+        lcd.print("donner volume:");
+        code="";  
+     }
+
+if (totalMilliLitres<volume) {
+  Serial.println(delayTime);
+  
+    digitalWrite(relais_moteur, HIGH); // Start the water pump
+     lcd.clear();
+        lcd.backlight(); 
+        lcd.setCursor(0, 0);
+         
+        lcd.print("Filling ....");
+      delay(delayTime);
+    
+    
+   
+    digitalWrite(relais_moteur, LOW); // Start the water pump
+   lcd.clear();
+        lcd.backlight(); 
+        lcd.setCursor(0, 0); 
+        lcd.print("Done");
+totalMilliLitres += volume;
+// delay(3000);
+// goto start;
+
+  
+  
+}else  {
+  digitalWrite(relais_moteur, LOW); // Stop the water pump
+  volume=0;
+}
+// delay(3000);
+}
+
+//Insterrupt Service Routine
+void measure_distance()
+{
+ digitalWrite(trigger,LOW);
+ delayMicroseconds(2);
+ digitalWrite(trigger,HIGH);
+ delayMicroseconds(10);
+ digitalWrite(trigger,LOW);
+ delayMicroseconds(2);
+ time=pulseIn(echo,HIGH);
+ 
+ distance=time/29/2;
+ Serial.println(distance);
+} 
+
+void pulseCounter()
+{
+  // Increment the pulse counter
+  pulseCount++;
+}
+
+void SetSolinoidValve()
+{
+  digitalWrite(solenoidValve, LOW);
+}
